@@ -2,6 +2,7 @@ local RSGCore = exports['rsg-core']:GetCoreObject()
 local npcs = {}
 local horses = {}
 local activeRaid = false
+local banditsAlive = 0
 
 Citizen.CreateThread(function()
     TriggerEvent("chat:addSuggestion", "/startraid", "Start a bandit raid (outside valentine sheriffs office)")
@@ -31,8 +32,15 @@ function CheckBanditKilled(killedEntity, killerEntity)
                 if killerEntity == PlayerPedId() then
                     TriggerServerEvent('banditRaid:rewardPlayer')
                 end
-                -- Remove the killed bandit from the npcs table
                 table.remove(npcs, i)
+                banditsAlive = banditsAlive - 1
+                
+                -- Check if all bandits are killed
+                if banditsAlive <= 0 then
+                    TriggerServerEvent('banditRaid:allBanditsKilled')
+                    EndRaid()
+                end
+                
                 break
             end
         end
@@ -42,6 +50,7 @@ end
 function StartRaid()
     activeRaid = true
     local raidPath = Config.RaidPaths[math.random(#Config.RaidPaths)]
+	banditsAlive = Config.BanditsPerRaid
     SpawnBandits(raidPath.spawnPoint)
     Citizen.CreateThread(function()
         local currentPointIndex = 1
@@ -250,19 +259,63 @@ end
 
 function EndRaid()
     activeRaid = false
+    banditsAlive = 0
+
+    -- Clean up NPCs
     for i, npc in ipairs(npcs) do
         if DoesEntityExist(npc) then
             DeleteEntity(npc)
         end
     end
+    npcs = {}
+
+    -- Clean up horses
     for i, horse in ipairs(horses) do
         if DoesEntityExist(horse) then
             DeleteEntity(horse)
         end
     end
-    npcs = {}
     horses = {}
-    print("Raid ended.")
+
+    -- Clean up any dropped weapons or items
+    local playerPed = PlayerPedId()
+    local playerCoords = GetEntityCoords(playerPed)
+    local radius = 100.0 -- Adjust this value based on the size of your raid area
+
+    local itemsFound = GetGamePool('CObject')
+    for _, item in ipairs(itemsFound) do
+        if DoesEntityExist(item) then
+            local itemCoords = GetEntityCoords(item)
+            if #(playerCoords - itemCoords) <= radius then
+                DeleteEntity(item)
+            end
+        end
+    end
+
+    -- Clean up any remaining ped corpses
+    local corpsesFound = GetGamePool('CPed')
+    for _, corpse in ipairs(corpsesFound) do
+        if DoesEntityExist(corpse) and not IsPedAPlayer(corpse) and IsEntityDead(corpse) then
+            local corpseCoords = GetEntityCoords(corpse)
+            if #(playerCoords - corpseCoords) <= radius then
+                DeleteEntity(corpse)
+            end
+        end
+    end
+
+    -- Clean up any vehicles (like wagons) that might have been part of the raid
+    local vehiclesFound = GetGamePool('CVehicle')
+    for _, vehicle in ipairs(vehiclesFound) do
+        if DoesEntityExist(vehicle) then
+            local vehicleCoords = GetEntityCoords(vehicle)
+            if #(playerCoords - vehicleCoords) <= radius then
+                DeleteEntity(vehicle)
+            end
+        end
+    end
+
+    print("Raid ended and all entities cleaned up.")
+    TriggerEvent('RSGCore:Notify', 'The bandit raid has ended and the area has been cleaned up!', 'success')
 end
 
 
