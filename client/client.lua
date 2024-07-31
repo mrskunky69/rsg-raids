@@ -24,6 +24,21 @@ RegisterCommand("endraid", function(source, args)
     end
 end)
 
+function CheckBanditKilled(killedEntity, killerEntity)
+    if DoesEntityExist(killedEntity) and IsEntityAPed(killedEntity) then
+        for i, bandit in ipairs(npcs) do
+            if killedEntity == bandit then
+                if killerEntity == PlayerPedId() then
+                    TriggerServerEvent('banditRaid:rewardPlayer')
+                end
+                -- Remove the killed bandit from the npcs table
+                table.remove(npcs, i)
+                break
+            end
+        end
+    end
+end
+
 function StartRaid()
     activeRaid = true
     local raidPath = Config.RaidPaths[math.random(#Config.RaidPaths)]
@@ -208,30 +223,28 @@ function BanditAggressionThread()
         
         for i, npc in ipairs(npcs) do
             if DoesEntityExist(npc) then
-                local banditCoords = GetEntityCoords(npc)
-                local distance = #(playerCoords - banditCoords)
-                
-                if playerHealth > 0 and distance <= Config.AggressionRange then
-                    -- Player is alive and within aggression range
-                    ClearPedTasks(npc)
-                    TaskCombatPed(npc, playerPed, 0, 16)
-                elseif playerHealth <= 0 then
-                    -- Player is dead
-                    -- Instead of clearing tasks, set NPCs to continue moving to the waypoint
-                    ClearPedTasks(npc)
-                    -- Example behavior: Resume path following or idle
-                    if activeRaid then
-                        -- Set NPCs to continue moving along the path or perform another task
-                        -- Ensure that NPCs continue to move to the next waypoint if needed
-                        local currentPath = Config.RaidPaths[math.random(#Config.RaidPaths)].path
-                        local nextPoint = currentPath[1]  -- Set nextPoint based on your logic
-                        TaskGoToCoordAnyMeans(npc, nextPoint.x, nextPoint.y, nextPoint.z, 2.0, 0, false, 786603, 0xbf800000)
+                if IsEntityDead(npc) then
+                    CheckBanditKilled(npc, playerPed)
+                else
+                    local banditCoords = GetEntityCoords(npc)
+                    local distance = #(playerCoords - banditCoords)
+                    
+                    if playerHealth > 0 and distance <= Config.AggressionRange then
+                        ClearPedTasks(npc)
+                        TaskCombatPed(npc, playerPed, 0, 16)
+                    elseif playerHealth <= 0 then
+                        ClearPedTasks(npc)
+                        if activeRaid then
+                            local currentPath = Config.RaidPaths[math.random(#Config.RaidPaths)].path
+                            local nextPoint = currentPath[1]
+                            TaskGoToCoordAnyMeans(npc, nextPoint.x, nextPoint.y, nextPoint.z, 2.0, 0, false, 786603, 0xbf800000)
+                        end
                     end
                 end
             end
         end
         
-        Citizen.Wait(1000) -- Check every second
+        Citizen.Wait(1000)
     end
 end
 
