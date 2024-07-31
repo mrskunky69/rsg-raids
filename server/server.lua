@@ -13,10 +13,10 @@ AddEventHandler('banditRaid:rewardPlayer', function()
     local Player = RSGCore.Functions.GetPlayer(src)
     
     if Player then
-        
+        -- Add cash reward
         Player.Functions.AddMoney('cash', 50, "Bandit kill reward")
         
-        
+        -- Add diamond item
         local diamondItem = "diamond" -- Replace with your actual diamond item name
         local amount = 1 -- Number of diamonds to give
         
@@ -29,4 +29,10 @@ AddEventHandler('banditRaid:rewardPlayer', function()
             TriggerClientEvent('RSGCore:Notify', src, 'You received $50 for killing a bandit, but your inventory is full for additional rewards', 'success')
         end
     end
+end)
+
+RegisterServerEvent('banditRaid:allBanditsKilled')
+AddEventHandler('banditRaid:allBanditsKilled', function()
+    TriggerClientEvent('RSGCore:Notify', src, 'nice work killing all bandits, keep safe out there', 'success')
+    TriggerClientEvent('RSGCore:Notify', -1, 'The bandit raid has been defeated!', 'success')
 end)
